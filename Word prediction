@@ -1,6 +1,7 @@
 #Building a Word Predictor Model
 #https://medium.com/@dennyc/a-simple-numerical-example-for-kneser-ney-smoothing-nlp-4600addf38b8
 #https://cbail.github.io/SICSS_Basic_Text_Analysis.html
+#https://www.tidytextmining.com/preface.html
 
 #Javier's recs: Remove combos with n = 1, don't remove stopwords
 #Put only bigrams and trigrams onto shiny. Keep source in an Rdata file
@@ -9,6 +10,7 @@ library(stringr)
 library(tidytext)
 library(dplyr)
 library(widyr)
+library(tidyr)
 
 #Part 1 - Exploratory Analysis of the three files
 
@@ -64,85 +66,92 @@ words <- cbind(words, total_words)
 d <- 0.75
 
 unigrams <- words %>% 
-        mutate(rank = row_number(), freq = n/total)
+        mutate(rank = row_number(), freq = n/total) %>% 
+        dplyr::rename(word2 = word)
 
 bigrams <- tidy_source %>% 
         unnest_tokens(bigram, word, token = "ngrams", n = 2) %>% 
-        separate(bigram, c("word1", "word2"), sep = " ")
+        separate(bigram, c("word1", "word2"), sep = " ") %>% 
+        count(word1, word2, sort = TRUE)
+bi_rows <- nrow(bigrams)
 
 trigrams <- tidy_source %>% 
         unnest_tokens(trigram, word, token = "ngrams", n = 3) %>% 
-        separate(trigram, c("word1", "word2", "word3"), sep = " ")
+        separate(trigram, c("word1", "word2", "word3"), sep = " ") %>% 
+        count(word1, word2, word3, sort = TRUE, name = "combo")
 
-trigrams <- trigrams %>% 
-        mutate(rank = row_number(), freq = n/sum(n))
+tri_rows <- nrow(trigrams)
 
-#Part 3 - Preparing for Kneser Kney  Smoothing
+tw1 <- tidy_source %>% 
+        unnest_tokens(trigram, word, token = "ngrams", n = 3) %>% 
+        separate(trigram, c("word1", "word2", "word3"), sep = " ") %>% 
+        count(word1, sort = TRUE, name = "n_tw1") %>% 
+        mutate(ptw1 = n_tw1 / tri_rows)
 
-bigram_num <- nrow(bigrams)
-trigram_num <- nrow(trigrams)
+tw2 <- tidy_source %>% 
+        unnest_tokens(trigram, word, token = "ngrams", n = 3) %>% 
+        separate(trigram, c("word1", "word2", "word3"), sep = " ") %>% 
+        count(word2, sort = TRUE, name = "n_tw2") %>% 
+        mutate(ptw2 = n_tw2 / tri_rows)
+
+tw3 <- tidy_source %>% 
+        unnest_tokens(trigram, word, token = "ngrams", n = 3) %>% 
+        separate(trigram, c("word1", "word2", "word3"), sep = " ") %>% 
+        count(word3, sort = TRUE, name = "n_tw3") %>% 
+        mutate(ptw3 = n_tw3 / tri_rows)
+
+trigrams <- merge(trigrams, tw3, by = "word3")
+trigrams <- merge(trigrams, tw2, by = "word2")
+trigrams <- merge(trigrams, tw1, by = "word1")
 
 
 
+#Part 3 - The Prediction Portion
 
+sentence <- "what I wanted to say is that the end is near"
 
+test <- bigrams %>% 
+        filter(word1 == "quasi")
 
+testb <- merge(test, unigrams, by = "word2")
 
+test %>% 
+        select(word1, word2, word3, combo) %>% 
+        filter(combo == max(combo)) %>% 
+        mutate(prediction = word3)
 
+test2 <- word(sentence,-2:-1)
 
-
-
-
-
-
-
-
-#Part 4 - The actual functions
+test3 <- trigrams %>% 
+        filter(word1 == test2[1]) %>% 
+        filter(word2 == test2[2]) %>% 
+        filter(combo==max(combo))
 
 wordPred <- function(string){
-        
-        if(str_count(string, '\\s+')+1 == 4){
-                
-               predict <- pentagrams %>% 
-                        filter(word4 == word(string, -1)) %>% 
-                        arrange(desc(freq)) %>% 
-                        slice(1:3)
-        return(predict$word5)
-        
-        }
-        
-        else if (str_count(string, '\\s+')+1 == 3){
-                
-                predict <- tetragrams %>% 
-                        filter(word3 == word(string, -1)) %>% 
-                        arrange(desc(freq)) %>% 
-                        slice(1:3)
-                print(predict$word4)
-                
-        }
-        
-        else if(str_count(string, '\\s+')+1 == 2){
+        if(str_count(string, '\\s+') > 1){
                 
                 predict <- trigrams %>% 
                         filter(word2 == word(string, -1)) %>% 
-                        arrange(desc(freq)) %>% 
-                        slice(1:3)
-                print(predict$word3)
+                        arrange(desc(combo)) %>% 
+                        slice(1)
+        
+        return(predict$word3)
                 
         }
         
-        else if(str_count(string, '\\s+')+1 == 1){
+        else if
+        (str_count(string, '\\s+') < 2){
                 
                 predict <- bigrams %>% 
-                        filter(word1 == string) %>% 
-                        arrange(desc(freq)) %>% 
-                        slice(1:3)
-                print(predict$word2)
-               
+                        filter(word1 == word(string, -1)) %>% 
+                        arrange(desc(n)) %>% 
+                        slice(1)
+                
+        return(predict$word2)
+                
         }
-        
-        else {
-                print(sample(unigrams$word, size = 3))    
-        }
-}
+ }
+
+
+
 
