@@ -1,6 +1,5 @@
 #Building a Word Predictor Model
-#https://medium.com/@dennyc/a-simple-numerical-example-for-kneser-ney-smoothing-nlp-4600addf38b8
-#https://cbail.github.io/SICSS_Basic_Text_Analysis.html
+
 #https://www.tidytextmining.com/preface.html
 
 #Javier's recs: Remove combos with n = 1, don't remove stopwords
